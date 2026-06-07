@@ -1,0 +1,34 @@
+
+# CELL 3: TOPOGRAPHIC SMOOTHING & ILLUMINATION MODELING
+# Mereduksi noise mikro-topografi dan mengekstraksi bayangan struktural (Hillshade)
+
+
+print("[PROCESS] Applying Gaussian Low-Pass Filter to DEM matrix...")
+
+# 1. LOW-PASS FILTERING
+# Mereduksi anomali erosi lokal (dendritik) untuk mempertahankan integritas struktur mayor
+dem_smoothed = gaussian_filter(dem_data, sigma=1.0)
+
+# 2. MULTI-DIRECTIONAL HILLSHADE COMPUTATION
+# Mengkompositkan pencahayaan dari berbagai azimuth untuk menghindari bias iluminasi tunggal
+azimuths = [30, 60, 270, 300, 330, 360]
+sudut_elevasi = 45
+vert_exag = 1.5  # Vertical exaggeration dioptimalkan untuk visibilitas patahan
+
+print(f"[PROCESS] Rendering composite hillshade from {len(azimuths)} azimuth vectors...")
+hillshade_sum = np.zeros_like(dem_smoothed, dtype=float)
+
+for az in azimuths:
+    ls = LightSource(azdeg=az, altdeg=sudut_elevasi)
+    hillshade_sum += ls.hillshade(dem_smoothed, vert_exag=vert_exag)
+
+hillshade_avg = hillshade_sum / len(azimuths)
+
+# 3. COMPOSITE VISUALIZATION
+plt.figure(figsize=(10, 10))
+plt.imshow(hillshade_avg, cmap='gray')
+plt.title('Multi-Directional Composite Hillshade\n(Optimized for Structural Extraction)')
+plt.axis('off')
+plt.show()
+
+print("[SUCCESS] Topographic shading matrix optimized and ready for edge detection.")
