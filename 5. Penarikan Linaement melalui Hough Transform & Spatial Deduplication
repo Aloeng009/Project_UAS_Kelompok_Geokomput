@@ -1,0 +1,105 @@
+
+# CELL 5: HOUGH TRANSFORM & SPATIAL DEDUPLICATION
+# Mengekstraksi vektor garis dari raster dan mengeliminasi redudansi spasial
+
+
+print("[PROCESS] Executing Probabilistic Hough Transform for vector extraction...")
+
+# 1. HOUGH TRANSFORM CALIBRATION
+rho = 1
+theta = np.pi / 180
+
+# Parameter geologi: Mengabaikan erosi lokal dan menjembatani rekahan (fracture gaps)
+threshold = 35          
+minLineLength = 35      
+maxLineGap = 20         
+
+lines = cv2.HoughLinesP(binary_edge, rho, theta, threshold,
+                        minLineLength=minLineLength, maxLineGap=maxLineGap)
+
+# 2. SPATIAL DEDUPLICATION ALGORITHM
+# Objektif: Mencegah over-estimasi statistik pada satu punggungan/lembah yang sama
+geometries = []
+azimuths = []
+accepted_lines = [] 
+hillshade_canvas = np.stack((cv2.normalize(hillshade_avg, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U),)*3, axis=-1)
+
+garis_mentah = len(lines) if lines is not None else 0
+garis_bersih = 0
+
+if lines is not None:
+    for line in lines:
+        x1, y1, x2, y2 = line[0]
+        angle_rad = np.arctan2(abs(y2 - y1), abs(x2 - x1))
+        angle_deg = np.degrees(angle_rad)
+
+        # Mengabaikan artefak scan grid vertikal/horizontal absolut
+        if (angle_deg <= 2 or angle_deg >= 178) or (88 <= angle_deg <= 92):
+            continue
+
+        mid_x = (x1 + x2) / 2
+        mid_y = (y1 + y2) / 2
+
+        # Filter Proksimitas Spasial
+        is_duplicate = False
+        for acc in accepted_lines:
+            acc_ang, acc_mx, acc_my = acc
+            dist = np.hypot(mid_x - acc_mx, mid_y - acc_my)
+            
+            ang_diff = abs(angle_deg - acc_ang)
+            if ang_diff > 90:
+                ang_diff = 180 - ang_diff
+
+            # Threshold toleransi kembar: Radius <15px dengan defleksi orientasi <10°
+            if dist < 15 and ang_diff < 10:
+                is_duplicate = True
+                break
+
+        if is_duplicate:
+            continue
+
+        accepted_lines.append((angle_deg, mid_x, mid_y))
+        garis_bersih += 1
+
+        cv2.line(hillshade_canvas, (x1, y1), (x2, y2), (255, 0, 0), 2)
+
+        # Coordinate Reprojection (Pixel to CRS)
+        lon1, lat1 = transform * (x1, y1)
+        lon2, lat2 = transform * (x2, y2)
+        line_geom = LineString([(lon1, lat1), (lon2, lat2)])
+
+        # True Azimuth Calculation
+        dx = lon2 - lon1
+        dy = lat2 - lat1
+        azimuth = (np.degrees(np.arctan2(dx, dy)) + 360) % 360
+
+        geometries.append(line_geom)
+        azimuths.append(azimuth)
+
+print(f"[INFO] Deduplication filter log: {garis_mentah} raw elements -> {garis_bersih} valid structural features.")
+
+# 3. EXTRACTION VISUALIZATION
+plt.figure(figsize=(12, 12))
+plt.imshow(hillshade_canvas)
+plt.title(f'Validated Structural Lineaments (Spatial Deduplication)\n(Total: {garis_bersih} unique features)')
+plt.axis('off')
+plt.show()
+
+# 4. VECTOR EXPORT
+if garis_bersih > 0:
+    gdf_kelurusan = gpd.GeoDataFrame({
+        'id': range(1, len(geometries) + 1),
+        'azimuth': azimuths,
+        'panjang_m': [g.length * 111000 for g in geometries],
+        'geometry': geometries
+    }, crs=crs)
+
+    output_dir = '/content/drive/MyDrive/DatasetDEMNAS/OutputKelurusan' ## Users may customize this section according to their requirements by specifying the appropriate file names and Google Drive directories. The selected files can be utilized as execution inputs or designated as output storage locations.
+    os.makedirs(output_dir, exist_ok=True)
+
+    shp_path = os.path.join(output_dir, 'Kelurusan_Final.shp')
+    csv_path = os.path.join(output_dir, 'Atribut_Kelurusan.csv')
+
+    gdf_kelurusan.to_file(shp_path)
+    gdf_kelurusan.drop(columns=['geometry']).to_csv(csv_path, index=False)
+    print(f"[SUCCESS] Spatial vector shapefile successfully exported to: {shp_path}")
