@@ -1,0 +1,58 @@
+# ==============================================================================
+# CELL 9: DEFORMATION DENSITY MAP (KDE PROXY)
+# Modeling zona hancuran maksimal (Damage Zone) sebagai proksi hidrogeologi
+# ==============================================================================
+
+print("[PROCESS] Computing spatial deformation intensity via Kernel Density Estimation...")
+
+file_utama = '/content/drive/MyDrive/DatasetDEMNAS/OutputKelurusan/Kelurusan_Final.shp' ## Users may customize this section according to their requirements by specifying the appropriate file names and Google Drive directories. The selected files can be utilized as execution inputs or designated as output storage locations.
+gdf_utama = gpd.read_file(file_utama)
+
+# 1. GEOMETRIC CENTROID ISOLATION
+x_coords, y_coords = [], []
+for geom in gdf_utama.geometry:
+    if geom and not geom.is_empty:
+        c = geom.centroid
+        x_coords.append(c.x)
+        y_coords.append(c.y)
+
+# Statistical Jittering (Mengatasi Singular Matrix pada kalkulasi Gaussian)
+x_coords = np.array(x_coords) + np.random.normal(0, 0.00001, len(x_coords))
+y_coords = np.array(y_coords) + np.random.normal(0, 0.00001, len(y_coords))
+
+# 2. KDE PROBABILITY MODELING
+bounds = array_bounds(dem_meta['height'], dem_meta['width'], transform)
+extent = [bounds[0], bounds[2], bounds[1], bounds[3]]
+
+X, Y = np.mgrid[bounds[0]:bounds[2]:300j, bounds[1]:bounds[3]:300j]
+positions = np.vstack([X.ravel(), Y.ravel()])
+
+kernel = gaussian_kde(np.vstack([x_coords, y_coords]))
+Z = np.reshape(kernel(positions).T, X.shape)
+
+# 3. HEATMAP VISUALIZATION
+fig, ax = plt.subplots(figsize=(14, 14), facecolor='white')
+
+ax.imshow(hillshade_avg, cmap='gray', extent=extent, zorder=0)
+density = ax.pcolormesh(X, Y, Z, cmap='magma', alpha=0.65, shading='auto', zorder=5)
+gdf_utama.plot(ax=ax, color='white', linewidth=0.5, alpha=0.5, zorder=10)
+
+cbar = plt.colorbar(density, ax=ax, fraction=0.046, pad=0.04)
+cbar.set_label('Structural Damage Intensity (Lineament Density)', fontsize=12)
+
+ax.set_xlim(bounds[0], bounds[2])
+ax.set_ylim(bounds[1], bounds[3])
+ax.set_aspect('auto')
+
+plt.title('Regional Deformation Hotspots & Fracture Connectivity Model', fontsize=16, fontweight='bold')
+plt.xlabel('Longitude', fontsize=12)
+plt.ylabel('Latitude', fontsize=12)
+
+out_path_kde = '/content/drive/MyDrive/DatasetDEMNAS/OutputKelurusan/Peta_Density.png' ##Users may customize this section according to their requirements by specifying the appropriate file names and Google Drive directories. The selected files can be utilized as execution inputs or designated as output storage locations.
+plt.savefig(out_path_kde, dpi=300, bbox_inches='tight', facecolor='white')
+plt.show()
+
+print(f"[SUCCESS] Spatial deformation probability map saved to: {out_path_kde}")
+print("=============================================================================")
+print("[COMPLETED] GEOLOGICAL COMPUTATION PIPELINE EXECUTED SUCCESSFULLY.")
+print("=============================================================================")
