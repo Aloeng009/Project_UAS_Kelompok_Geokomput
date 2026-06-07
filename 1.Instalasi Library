@@ -1,0 +1,40 @@
+# CELL 1: ENVIRONMENT SETUP & DEPENDENCY INJECTION
+# Inisialisasi library untuk komputasi spasial, computer vision, dan visualisasi
+
+
+# 1. System & File Operations
+import os
+import re
+import glob
+import math
+import shutil
+
+# 2. Array Computations & DataFrames
+import numpy as np
+import pandas as pd
+
+# 3. Geospatial Vector & Raster Processing
+import geopandas as gpd
+from shapely.geometry import LineString
+import rasterio
+from rasterio.transform import array_bounds
+
+# 4. Computer Vision & Feature Extraction
+import cv2
+from skimage import filters, feature
+from skimage.transform import probabilistic_hough_line
+from skimage.morphology import skeletonize
+from scipy.ndimage import gaussian_filter
+from scipy.stats import gaussian_kde
+
+# 5. Data Visualization
+import matplotlib.pyplot as plt
+from matplotlib.colors import LightSource, ListedColormap, BoundaryNorm
+
+# 6. Cloud Storage Integration
+from google.colab import drive
+
+# Konfigurasi perenderan grafik di dalam sel Jupyter
+%matplotlib inline
+
+print("[INFO] Environment setup completed. All geospatial and vision dependencies loaded.")
