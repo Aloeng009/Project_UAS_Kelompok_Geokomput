@@ -1,0 +1,43 @@
+
+# CELL 6: K-MEANS CLUSTERING (EXTERNAL MODULE INTEGRATION)
+# Mengeksekusi segmentasi kelompok sesar berdasarkan orientasi (Koge et al., 2024)
+
+
+print("[PROCESS] Configuring virtual environment for external script execution...")
+
+# 1. GMT DEPENDENCY INJECTION
+!apt-get install ghostscript gmt -y -q > /dev/null
+!pip install pygmt==0.11.0 -q
+
+# 2. WORKSPACE ISOLATION & CLEANUP
+# Memastikan tidak ada residu memori komputasi sebelumnya
+drive_dir = '/content/drive/MyDrive/DatasetDEMNAS/OutputKelurusan' #Users may customize this section according to their requirements by specifying the appropriate file names and Google Drive directories. The selected files can be utilized as execution inputs or designated as output storage locations.
+local_dir = '/content'
+target_name = "your_data"
+
+residual_files = glob.glob('/content/*.shp') + glob.glob('/content/*.shx') + glob.glob('/content/*.dbf') + glob.glob('/content/*.prj')
+for f in residual_files:
+    try: os.remove(f)
+    except: pass
+
+# Caching data primer ke direktori lokal
+for file_path in glob.glob(os.path.join(drive_dir, "Kelurusan_Final.*")):
+    ekstensi = os.path.splitext(file_path)[1]
+    shutil.copy(file_path, os.path.join(local_dir, f"{target_name}{ekstensi}"))
+
+print("[PROCESS] Executing K-Means clustering algorithm (Zenodo module)...")
+
+# 3. K-MEANS ALGORITHM EXECUTION
+%run '/content/drive/MyDrive/DatasetDEMNAS/Lineament_clustering_tool.ipynb' # Users may customize this section according to their requirements by specifying the appropriate file names and Google Drive directories. The selected files can be utilized as execution inputs or designated as output storage locations.
+
+# 4. OUTPUT VERIFICATION
+print("\n" + "="*50)
+print("[INFO] POST-EXECUTION CLUSTERING LOG:")
+hasil_zenodo = glob.glob('/content/your_data_*/exported_shapefiles/*.shp')
+if hasil_zenodo:
+    print(f"       Detected {len(hasil_zenodo)} valid partitioned spatial features.")
+else:
+    print("       [WARNING] External clustering module returned no spatial output.")
+print("="*50)
+
+print("[SUCCESS] Clustering sub-routine terminated. Data bridged to kinematic analysis.")
