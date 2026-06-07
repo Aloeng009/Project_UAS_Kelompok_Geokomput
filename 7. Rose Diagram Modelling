@@ -1,0 +1,76 @@
+
+# CELL 7: KINEMATIC STATISTICS (ROSE DIAGRAM MODELLING)
+# Mengekstraksi arah tegasan tektonik dari hasil clustering spasial
+
+
+print("[PROCESS] Rendering regional structural orientation models...")
+
+# 1. DYNAMIC PATH ROUTING
+target_path = '/content/your_data_*/exported_shapefiles/cluster_*.shp'
+cluster_files = glob.glob(target_path)
+
+if not cluster_files:
+    print(f"[ERROR] Sub-routine failed to locate segmented clusters in: {target_path}")
+else:
+    cluster_files.sort()
+    
+    # Inisiasi koordinat polar
+    fig, axs = plt.subplots(1, len(cluster_files), figsize=(6 * len(cluster_files), 6), 
+                            subplot_kw={'projection': 'polar'}, facecolor='white')
+    if len(cluster_files) == 1: 
+        axs = [axs]
+        
+    # Palet standar deformasi tektonik
+    colors = ['#d63031', '#0984e3', '#00b894', '#e17055', '#6c5ce7']
+    
+    # 2. VECTOR AZIMUTH CALCULATION & SYMMETRIZATION
+    for i, file_path in enumerate(cluster_files):
+        filename = os.path.basename(file_path)
+        cluster_id = filename.split('_')[1]
+        
+        gdf_cluster = gpd.read_file(file_path)
+        
+        az_list = []
+        for geom in gdf_cluster.geometry:
+            if geom is None or geom.is_empty: continue
+            
+            # Geometry Protocol Validation
+            if geom.geom_type == 'LineString':
+                coords = list(geom.coords)
+                if len(coords) >= 2:
+                    dx, dy = coords[-1][0] - coords[0][0], coords[-1][1] - coords[0][1]
+                    az_list.append((np.degrees(np.arctan2(dx, dy)) + 360) % 360)
+            elif geom.geom_type == 'MultiLineString':
+                for part in geom.geoms:
+                    coords = list(part.coords)
+                    if len(coords) >= 2:
+                        dx, dy = coords[-1][0] - coords[0][0], coords[-1][1] - coords[0][1]
+                        az_list.append((np.degrees(np.arctan2(dx, dy)) + 360) % 360)
+                        break 
+        
+        if not az_list: az_list = [0]
+            
+        # Symmetrization untuk representasi Fracture Kinematics (Bidirectional)
+        azimuth_double = list(az_list) + list((np.array(az_list) + 180) % 360)
+        bins = np.arange(0, 361, 10)
+        counts, _ = np.histogram(azimuth_double, bins=bins)
+        
+        # 3. POLAR PLOT CONFIGURATION
+        axs[i].set_theta_zero_location('N')
+        axs[i].set_theta_direction(-1) # Azimuth searah jarum jam
+        axs[i].set_thetagrids(np.arange(0, 360, 45), labels=['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'])
+        axs[i].bar(np.deg2rad(bins[:-1]), counts, width=np.deg2rad(10), bottom=0.0, 
+                   color=colors[i % len(colors)], edgecolor='black', alpha=0.85)
+        
+        if max(counts) > 0: axs[i].set_ylim(0, max(counts) * 1.1)
+        axs[i].set_title(f'Cluster {cluster_id} Mechanics\n(n = {len(az_list)} Vectors)', fontweight='bold', y=1.15)
+        
+    plt.suptitle('Kinematic Orientation of Fault Systems (Rose Diagram)', fontsize=16, fontweight='bold', y=1.1)
+    plt.tight_layout()
+    
+    out_dir = '/content/drive/MyDrive/DatasetDEMNAS/OutputKelurusan' #Users may customize this section according to their requirements by specifying the appropriate file names and Google Drive directories. The selected files can be utilized as execution inputs or designated as output storage locations.
+    out_path = os.path.join(out_dir, 'Rose_Diagram_Zenodo_FINAL.png')
+    plt.savefig(out_path, dpi=300, bbox_inches='tight', facecolor='white')
+    plt.show()
+    
+    print(f"[SUCCESS] Spatial statistical distribution saved to: {out_path}")
