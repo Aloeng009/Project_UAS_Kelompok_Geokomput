@@ -1,0 +1,46 @@
+
+# CELL 4: KINEMATIC EDGE DETECTION & SKELETONIZATION
+# Mengidentifikasi perubahan gradien lereng (break-in-slope) sebagai kandidat struktur
+
+
+print("[PROCESS] Initializing Sobel gradient operator for lineament detection...")
+
+# 1. PRE-PROCESSING MATRIX
+hillshade_8bit = cv2.normalize(hillshade_avg, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
+hillshade_blurred = cv2.GaussianBlur(hillshade_8bit, (5, 5), 0)
+
+# 2. GRADIENT MAGNITUDE CALCULATION (SOBEL)
+# Menghitung turunan spasial orde pertama untuk mendeteksi batas anomali topografi
+sobelx = cv2.Sobel(hillshade_blurred, cv2.CV_64F, 1, 0, ksize=3)
+sobely = cv2.Sobel(hillshade_blurred, cv2.CV_64F, 0, 1, ksize=3)
+magnitude = cv2.magnitude(sobelx, sobely)
+magnitude_8bit = cv2.normalize(magnitude, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
+
+# 3. BINARIZATION & MORPHOLOGICAL CLEANING
+# Thresholding otomatis (Otsu) dilanjutkan dengan penghapusan noise (Opening)
+_, binary_otsu = cv2.threshold(magnitude_8bit, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+
+kernel = np.ones((3,3), np.uint8)
+binary_cleaned = cv2.morphologyEx(binary_otsu, cv2.MORPH_OPEN, kernel)
+
+# 4. SKELETONIZATION
+print("[PROCESS] Executing morphological thinning (Skeletonization)...")
+binary_bool = binary_cleaned > 0
+skeleton = skeletonize(binary_bool)
+binary_edge = (skeleton * 255).astype(np.uint8)
+
+# 5. TRANSFORMATION VISUALIZATION
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 8))
+
+ax1.imshow(binary_otsu, cmap='gray')
+ax1.set_title('Gradient Magnitude (Otsu Threshold)\n(Pre-Morphological Processing)')
+ax1.axis('off')
+
+ax2.imshow(binary_edge, cmap='gray')
+ax2.set_title('Skeletonized Target Lineaments\n(1-Pixel Width Definition)')
+ax2.axis('off')
+
+plt.tight_layout()
+plt.show()
+
+print("[SUCCESS] Feature boundaries successfully constrained. Ready for vector extraction.")
