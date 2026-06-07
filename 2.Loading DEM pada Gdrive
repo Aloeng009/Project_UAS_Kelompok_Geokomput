@@ -1,0 +1,56 @@
+
+# CELL 2: DATA INGESTION & HYPSOMETRIC CLASSIFICATION
+# Memuat Digital Elevation Model (DEM) dan klasifikasi morfologi regional
+
+
+print("[PROCESS] Initializing cloud storage mounting...")
+drive.mount('/content/drive')
+
+file_dem = '/content/drive/MyDrive/DatasetDEMNAS/PetaDasar.tif' ## Users may customize this section according to their requirements by specifying the appropriate file names and Google Drive directories. The selected files can be utilized as execution inputs or designated as output storage locations.
+print(f"[PROCESS] Reading spatial raster: {os.path.basename(file_dem)}")
+
+# 1. METADATA EXTRACTION & DATA SANITIZATION
+with rasterio.open(file_dem) as src:
+    dem_data = src.read(1).astype(float)
+    dem_meta = src.meta
+    transform = src.transform
+    crs = src.crs
+
+    # Masking nilai NoData dan anomali elevasi negatif ekstrem
+    if src.nodata is not None:
+        dem_data[dem_data == src.nodata] = np.nan
+    else:
+        dem_data[dem_data < -100] = np.nan
+
+# 2. HYPSOMETRIC ANALYSIS (ELEVATION PROFILING)
+max_elevasi = np.nanmax(dem_data)
+print(f"[INFO] Maximum regional elevation detected: {max_elevasi:.2f} MASL")
+
+# Kalibrasi batas atas matriks secara dinamis untuk alokasi color mapping
+batas_atas = max(1001, int(max_elevasi) + 1)
+bounds = [0, 50, 200, 500, 1000, batas_atas]
+
+# Konfigurasi palet warna hypsometric standar
+colors = ['#00ff00', '#7fff00', '#ffff00', '#ffa500', '#8b4513']
+cmap = ListedColormap(colors)
+norm = BoundaryNorm(bounds, cmap.N)
+
+# 3. SPATIAL VISUALIZATION
+plt.figure(figsize=(8, 8))
+img = plt.imshow(dem_data, cmap=cmap, norm=norm)
+
+cbar = plt.colorbar(img, ticks=bounds, shrink=0.8)
+cbar.ax.set_yticklabels([
+    '0-50 (Lowlands)',
+    '50-200 (Low Hills)',
+    '200-500 (Hills)',
+    '500-1000 (High Hills)',
+    '>1000 (Mountains)',
+    ''
+])
+
+plt.title('Hypsometric Classification Model')
+plt.axis('off')
+plt.show()
+
+print("[SUCCESS] Base terrain model successfully rendered.")
