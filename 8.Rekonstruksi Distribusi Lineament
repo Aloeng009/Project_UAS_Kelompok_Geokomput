@@ -1,0 +1,48 @@
+
+# CELL 8: KINEMATIC LINEAMENT MAPPING
+# Rekonstruksi spasial distribusi sistem sesar ke dalam peta topografi dasar
+
+
+print("[PROCESS] Overlaying classified spatial vectors onto regional topography...")
+
+cluster_files = glob.glob('/content/your_data_*/exported_shapefiles/cluster_*.shp')
+
+if not cluster_files:
+    print("[ERROR] Spatial classification data not detected in local pipeline.")
+else:
+    cluster_files.sort()
+    fig, ax = plt.subplots(figsize=(14, 14), facecolor='white')
+
+    # Bounding Box Alignment
+    bounds = array_bounds(dem_meta['height'], dem_meta['width'], transform)
+    extent = [bounds[0], bounds[2], bounds[1], bounds[3]]
+
+    # 1. BASE MAP INITIALIZATION
+    ax.imshow(hillshade_avg, cmap='gray', extent=extent, zorder=0, alpha=0.8)
+
+    # 2. VECTOR OVERLAY
+    colors = ['#d63031', '#0984e3', '#00b894', '#e17055', '#6c5ce7']
+
+    for i, file_path in enumerate(cluster_files):
+        cluster_id = os.path.basename(file_path).split('_')[1]
+        gdf_cluster = gpd.read_file(file_path)
+        
+        gdf_cluster.plot(ax=ax, color=colors[i % len(colors)], linewidth=2.5, 
+                         label=f'Fault System {cluster_id}', zorder=10)
+
+    # 3. CARTOGRAPHIC FORMATTING
+    ax.set_xlim(bounds[0], bounds[2])
+    ax.set_ylim(bounds[1], bounds[3])
+    ax.set_aspect('auto')
+
+    plt.title('Kinematic Distribution of Extracted Geologic Structures', fontsize=16, fontweight='bold')
+    plt.xlabel('Longitude (Decimal Degrees)', fontsize=12)
+    plt.ylabel('Latitude (Decimal Degrees)', fontsize=12)
+    plt.legend(loc='upper right', framealpha=0.9, fontsize=12)
+
+    out_dir = '/content/drive/MyDrive/DatasetDEMNAS/OutputKelurusan' #Users may customize this section according to their requirements by specifying the appropriate file names and Google Drive directories. The selected files can be utilized as execution inputs or designated as output storage locations.
+    out_path_map = os.path.join(out_dir, 'Peta_Kinematik.png')
+    plt.savefig(out_path_map, dpi=300, bbox_inches='tight', facecolor='white')
+    
+    plt.show()
+    print(f"[SUCCESS] Topo-Kinematic mapping successfully exported to: {out_path_map}")
